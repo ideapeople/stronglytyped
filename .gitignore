@@ -1,3 +1,5 @@
 vendor
 *.exe
+.idea
+.vscode
 
