@@ -1,58 +1,59 @@
 package main
 
 import (
-  "context"
-  "fmt"
-  "log"
-  "os"
-  "os/signal"
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
 
-  "github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v2"
 )
 
-func main(){
-  _, rootCancel := signal.NotifyContext(context.Background(), os.Interrupt)
+func main() {
+	_, rootCancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
-  app := &cli.App{
-    Name:  "stronglytyped",
-    Usage: "Typing test",
-    Authors: []*cli.Author{
-      {
-        Name: "ideapeople",
-      },
-    },
-    EnableBashCompletion: true,
-    BashComplete: cli.DefaultAppComplete,
-    Commands: []*cli.Command{
-      startTest(),
-    },
-  }
+	app := &cli.App{
+		Name:  "stronglytyped",
+		Usage: "Typing test",
+		Authors: []*cli.Author{
+			{
+				Name: "ideapeople",
+			},
+		},
+		EnableBashCompletion: true,
+		BashComplete:         cli.DefaultAppComplete,
+		Commands: []*cli.Command{
+			startTest(),
+		},
+	}
 
-  if err := app.Run(os.Args); err != nil {
-    rootCancel()
-    log.Fatal(err)
-  }
+	if err := app.Run(os.Args); err != nil {
+		rootCancel()
+		log.Fatal(err)
+	}
 
-  rootCancel()
+	rootCancel()
 }
 
-func startTest() *cli.Command{
-  var number int
-  exampleFlag := &cli.IntFlag{
-    Name: "example",
-    Usage: "this is an example",
-    Destination: &number,
-    Required: true,
-  }
+func startTest() *cli.Command {
+	var length int
 
-  return &cli.Command{
-    Name: "typing-test",
-    Usage: "Start typing test",
-    Flags: []cli.Flag{exampleFlag},
-    Action: func(ctx *cli.Context) error {
-      fmt.Printf("This is a test: %v", number)
-      return nil
-    },
-  }
+	lengthFlag := &cli.IntFlag{
+		Name:        "length",
+		Usage:       "Specify the length of the test in seconds",
+		Destination: &length,
+		Required:    false,
+		Value:       30,
+	}
+
+	return &cli.Command{
+		Name:  "tt",
+		Usage: "Start typing test",
+		Flags: []cli.Flag{lengthFlag},
+		Action: func(ctx *cli.Context) error {
+			fmt.Printf("This is a test: %v", length)
+			return nil
+		},
+	}
 }
-
