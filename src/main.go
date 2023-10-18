@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/charmbracelet/bubbles/textinput"
 	"log"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 var TARGET_WORDS = []string{"kartik", "aaron", "josh"}
 
 type model struct {
+	textInput         textinput.Model
 	targetStringIndex int
 	currWord          string
 	prevWords         []string
@@ -25,7 +27,10 @@ func (m model) prevWord() string {
 }
 
 func initialModel() model {
+	ti := textinput.New()
+	ti.Focus()
 	return model{
+		textInput:         ti,
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
@@ -33,10 +38,12 @@ func initialModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
