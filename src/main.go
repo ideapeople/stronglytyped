@@ -43,36 +43,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeySpace:
-			if m.currWord == "" {
-				return m, nil
-			}
-
 			if len(m.prevWords) == len(TARGET_WORDS)-1 {
 				return m, tea.Quit
 			}
 
-			m.prevWords = append(m.prevWords, m.currWord)
-			m.currWord = ""
+			if m.currWord != "" {
+				m.prevWords = append(m.prevWords, m.currWord)
+				m.currWord = ""
+			}
 		case tea.KeyBackspace:
-			// If there is a single word which is empty, do nothing
-			if len(m.prevWords) == 0 && m.currWord == "" {
-				return m, nil
+			// If the current word is empty, then:
+			//   - remove the current word if there is a previous word and it is not correct
+			//   - otherwise, do nothing.
+			if m.currWord == "" {
+				if len(m.prevWords) > 0 && m.prevWord() != TARGET_WORDS[len(m.prevWords)-1] {
+					m.currWord = m.prevWord()
+					m.prevWords = m.prevWords[:len(m.prevWords)-1]
+				}
+			} else {
+				// If the current word is not empty, remove its last character.
+				m.currWord = removeLastChar(m.currWord)
 			}
-
-			// If current word is empty and the previous word is correct, do nothing
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == TARGET_WORDS[len(m.prevWords)-1] {
-				return m, nil
-			}
-
-			// If current word is empty and the previous word is not correct, remove the current word
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != TARGET_WORDS[len(m.prevWords)-1] {
-				m.currWord = m.prevWord()
-				m.prevWords = m.prevWords[:len(m.prevWords)-1]
-				return m, nil
-			}
-
-			// Else remove the last character of the current word
-			m.currWord = removeLastChar(m.currWord)
 		default:
 			m.currWord += msg.String()
 		}
