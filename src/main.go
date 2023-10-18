@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"os/signal"
 
@@ -96,16 +95,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return m.RenderUserInput()
-}
-
-func (m model) RenderUserInput() string {
 	var resp string
 	for indx, word := range m.targetWords {
 		targetWord := []rune(word)
 		userWord := []rune(m.getUserWordAtIndex(indx))
 
-		for i := 0; i < int(math.Min(float64(len(targetWord)), float64(len(userWord)))); i++ {
+		for i := 0; i < min(len(targetWord), len(userWord)); i++ {
 			textStyle := CorrectTextStyle
 			if targetWord[i] != userWord[i] {
 				textStyle = WrongTextStyle
@@ -113,10 +108,16 @@ func (m model) RenderUserInput() string {
 			resp += textStyle.Render(string(targetWord[i]))
 		}
 
+		// determines when to print cursor
+		var cursor string
+		if len(m.prevWords) == indx {
+			cursor = CursorTextStyle.Render("|")
+		}
+
 		if len(userWord) > len(targetWord) {
-			resp += WrongTextStyle.Render(string(userWord[len(targetWord):]))
+			resp += OvertypedTextStyle.Render(string(userWord[len(targetWord):])) + cursor
 		} else {
-			resp += UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
+			resp += cursor + UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
 		}
 
 		if indx < len(m.targetWords)-1 {
