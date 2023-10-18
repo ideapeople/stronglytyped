@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/urfave/cli/v2"
@@ -101,8 +100,7 @@ func (m model) View() string {
 }
 
 func (m model) RenderUserInput() string {
-	var sb strings.Builder
-
+	var resp string
 	for indx, word := range m.targetWords {
 		targetWord := []rune(word)
 		userWord := []rune(m.getUserWordAtIndex(indx))
@@ -112,22 +110,20 @@ func (m model) RenderUserInput() string {
 			if targetWord[i] != userWord[i] {
 				textStyle = WrongTextStyle
 			}
-			sb.WriteString(textStyle.Render(string(targetWord[i])))
+			resp += textStyle.Render(string(targetWord[i]))
 		}
 
 		if len(userWord) > len(targetWord) {
-			sb.WriteString(WrongTextStyle.Render(string(userWord[len(targetWord):])))
+			resp += WrongTextStyle.Render(string(userWord[len(targetWord):]))
 		} else {
-			sb.WriteString(UnreachedTextStyle.Render(string(targetWord[len(userWord):])))
+			resp += UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
 		}
 
 		if indx < len(m.targetWords)-1 {
-			sb.WriteString(" ")
+			resp += " "
 		}
-
 	}
-
-	return sb.String()
+	return resp
 }
 
 func removeLastChar(s string) string {
