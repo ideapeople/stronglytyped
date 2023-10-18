@@ -6,18 +6,30 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/urfave/cli/v2"
 )
 
-var TARGET_WORDS = []string{"kartik", "aaron", "josh"}
+var (
+	targetWords = []string{"kartik", "aaron", "josh"}
+)
 
 type model struct {
 	targetStringIndex int
 	currWord          string
 	prevWords         []string
+	targetWords       []string
+}
+
+func (m model) getUserWordAtIndex(index int) string {
+	if len(m.prevWords) < index {
+		return ""
+	}
+	if len(m.prevWords) == index {
+		return m.currWord
+	}
+	return m.prevWords[index]
 }
 
 func (m model) prevWord() string {
@@ -29,6 +41,7 @@ func initialModel() model {
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
+		targetWords:       targetWords,
 	}
 }
 
@@ -47,7 +60,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			if len(m.prevWords) == len(TARGET_WORDS)-1 {
+			if len(m.prevWords) == len(m.targetWords)-1 {
 				return m, tea.Quit
 			}
 
@@ -60,12 +73,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// If current word is empty and the previous word is correct, do nothing
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == TARGET_WORDS[len(m.prevWords)-1] {
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == m.targetWords[len(m.prevWords)-1] {
 				return m, nil
 			}
 
 			// If current word is empty and the previous word is not correct, remove the current word
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != TARGET_WORDS[len(m.prevWords)-1] {
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != m.targetWords[len(m.prevWords)-1] {
 				m.currWord = m.prevWord()
 				m.prevWords = m.prevWords[:len(m.prevWords)-1]
 				return m, nil
@@ -82,15 +95,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	result := strings.Join(TARGET_WORDS, " ") + "\n" + strings.Join(m.prevWords, " ")
+	var resp string
+	for indx, word := range m.targetWords {
+		targetWord := []rune(word)
+		userWord := []rune(m.getUserWordAtIndex(indx))
 
-	if len(m.prevWords) > 0 {
-		result += " "
+		for i := 0; i < min(len(targetWord), len(userWord)); i++ {
+			textStyle := CorrectTextStyle
+			if targetWord[i] != userWord[i] {
+				textStyle = WrongTextStyle
+			}
+			resp += textStyle.Render(string(targetWord[i]))
+		}
+
+		// determines when to print cursor
+		var cursor string
+		if len(m.prevWords) == indx {
+			cursor = CursorTextStyle.Render("|")
+		}
+
+		if len(userWord) > len(targetWord) {
+			resp += OvertypedTextStyle.Render(string(userWord[len(targetWord):])) + cursor
+		} else {
+			resp += cursor + UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
+		}
+
+		if indx < len(m.targetWords)-1 {
+			resp += " "
+		}
 	}
-
-	result += m.currWord
-
-	return result
+	return resp
 }
 
 func removeLastChar(s string) string {
