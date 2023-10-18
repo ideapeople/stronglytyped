@@ -120,7 +120,11 @@ func (m model) RenderUserInput() string {
 		} else {
 			sb.WriteString(UnreachedTextStyle.Render(string(targetWord[len(userWord):])))
 		}
-		sb.WriteString(" ")
+
+		if indx < len(m.targetWords)-1 {
+			sb.WriteString(" ")
+		}
+
 	}
 
 	return sb.String()
