@@ -6,20 +6,29 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/urfave/cli/v2"
 )
 
-const TARGET_STRING = "kartik josh aaron"
+var TARGET_WORDS = []string{"kartik", "aaron", "josh"}
 
 type model struct {
 	targetStringIndex int
+	currWord          string
+	prevWords         []string
+}
+
+func (m model) prevWord() string {
+	return m.prevWords[len(m.prevWords)-1]
 }
 
 func initialModel() model {
 	return model{
 		targetStringIndex: 0,
+		currWord:          "",
+		prevWords:         []string{},
 	}
 }
 
@@ -30,17 +39,42 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		switch msg.Type {
+		case tea.KeyCtrlC:
 			return m, tea.Quit
-		default:
-			if m.targetStringIndex >= len(TARGET_STRING) {
+		case tea.KeySpace:
+			if m.currWord == "" {
 				return m, nil
 			}
 
-			if msg.String() == string(TARGET_STRING[m.targetStringIndex]) {
-				m.targetStringIndex++
+			if len(m.prevWords) == len(TARGET_WORDS)-1 {
+				return m, tea.Quit
 			}
+
+			m.prevWords = append(m.prevWords, m.currWord)
+			m.currWord = ""
+		case tea.KeyBackspace:
+			// If there is a single word which is empty, do nothing
+			if len(m.prevWords) == 0 && m.currWord == "" {
+				return m, nil
+			}
+
+			// If current word is empty and the previous word is correct, do nothing
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == TARGET_WORDS[len(m.prevWords)-1] {
+				return m, nil
+			}
+
+			// If current word is empty and the previous word is not correct, remove the current word
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != TARGET_WORDS[len(m.prevWords)-1] {
+				m.currWord = m.prevWord()
+				m.prevWords = m.prevWords[:len(m.prevWords)-1]
+				return m, nil
+			}
+
+			// Else remove the last character of the current word
+			m.currWord = removeLastChar(m.currWord)
+		default:
+			m.currWord += msg.String()
 		}
 	}
 
@@ -48,7 +82,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return TARGET_STRING[:m.targetStringIndex]
+	result := strings.Join(TARGET_WORDS, " ") + "\n" + strings.Join(m.prevWords, " ")
+
+	if len(m.prevWords) > 0 {
+		result += " "
+	}
+
+	result += m.currWord
+
+	return result
+}
+
+func removeLastChar(s string) string {
+	runes := []rune(s)
+	if len(runes) == 0 {
+		return s // or return an error if you prefer
+	}
+	return string(runes[:len(runes)-1])
 }
 
 func main() {
