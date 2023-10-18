@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,12 +13,25 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var TARGET_WORDS = []string{"kartik", "aaron", "josh"}
+var (
+	targetWords = []string{"kartik", "aaron", "josh"}
+)
 
 type model struct {
 	targetStringIndex int
 	currWord          string
 	prevWords         []string
+	targetWords       []string
+}
+
+func (m model) getUserWordAtIndex(index int) string {
+	if len(m.prevWords) < index {
+		return ""
+	}
+	if len(m.prevWords) == index {
+		return m.currWord
+	}
+	return m.prevWords[index]
 }
 
 func (m model) prevWord() string {
@@ -29,6 +43,7 @@ func initialModel() model {
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
+		targetWords:       targetWords,
 	}
 }
 
@@ -47,7 +62,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			if len(m.prevWords) == len(TARGET_WORDS)-1 {
+			if len(m.prevWords) == len(m.targetWords)-1 {
 				return m, tea.Quit
 			}
 
@@ -60,12 +75,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// If current word is empty and the previous word is correct, do nothing
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == TARGET_WORDS[len(m.prevWords)-1] {
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == m.targetWords[len(m.prevWords)-1] {
 				return m, nil
 			}
 
 			// If current word is empty and the previous word is not correct, remove the current word
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != TARGET_WORDS[len(m.prevWords)-1] {
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != m.targetWords[len(m.prevWords)-1] {
 				m.currWord = m.prevWord()
 				m.prevWords = m.prevWords[:len(m.prevWords)-1]
 				return m, nil
@@ -82,15 +97,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	result := strings.Join(TARGET_WORDS, " ") + "\n" + strings.Join(m.prevWords, " ")
+	return m.RenderUserInput()
+}
 
-	if len(m.prevWords) > 0 {
-		result += " "
+func (m model) RenderUserInput() string {
+	var sb strings.Builder
+
+	for indx, word := range m.targetWords {
+		targetWord := []rune(word)
+		userWord := []rune(m.getUserWordAtIndex(indx))
+
+		for i := 0; i < int(math.Min(float64(len(targetWord)), float64(len(userWord)))); i++ {
+			textStyle := CorrectTextStyle
+			if targetWord[i] != userWord[i] {
+				textStyle = WrongTextStyle
+			}
+			sb.WriteString(textStyle.Render(string(targetWord[i])))
+		}
+
+		if len(userWord) > len(targetWord) {
+			sb.WriteString(WrongTextStyle.Render(string(userWord[len(targetWord):])))
+		} else {
+			sb.WriteString(UnreachedTextStyle.Render(string(targetWord[len(userWord):])))
+		}
+		sb.WriteString(" ")
 	}
 
-	result += m.currWord
-
-	return result
+	return sb.String()
 }
 
 func removeLastChar(s string) string {
