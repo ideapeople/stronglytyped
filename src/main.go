@@ -113,38 +113,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeySpace:
-			if m.currWord == "" {
-				return m, nil
-			}
+			if m.currWord != "" {
+				m.prevWords = append(m.prevWords, m.currWord)
+				m.currWord = ""
 
-			m.prevWords = append(m.prevWords, m.currWord)
-			m.currWord = ""
-
-			if len(m.prevWords)-1 == m.lastWordOnCenterLineIndex() {
-				m.targetWords = append(m.targetWords, m.generateWords()...)
+				if len(m.prevWords)-1 == m.lastWordOnCenterLineIndex() {
+					m.targetWords = append(m.targetWords, m.generateWords()...)
+				}
 			}
 		case tea.KeyBackspace:
-			// If there is a single word which is empty, do nothing
-			if len(m.prevWords) == 0 && m.currWord == "" {
-				return m, nil
-			}
-
-			// If current word is empty and the previous word is correct, do nothing
-			if len(m.prevWords) > 0 && m.currWord == "" && m.wordIsCorrect(len(m.prevWords)-1) {
-				return m, nil
-			}
-
-			// If current word is empty and the previous word is not correct and the
-			// previous word is on the current page, remove the current word
-			prevWordIsOnPage := len(m.prevWords)-1 >= m.firstIndexOfPage()
-			if len(m.prevWords) > 0 && m.currWord == "" && !m.wordIsCorrect(len(m.prevWords)-1) && prevWordIsOnPage {
+			if m.currWord != "" {
+				m.currWord = removeLastChar(m.currWord)
+			} else if len(m.prevWords) > 0 && !m.wordIsCorrect(len(m.prevWords)-1) && len(m.prevWords)-1 >= m.firstIndexOfPage() {
+				// If current word is empty and the previous word is not correct and
+				// the previous word is on the current page, remove the current word.
 				m.currWord = m.prevWord()
 				m.prevWords = m.prevWords[:len(m.prevWords)-1]
-				return m, nil
 			}
-
-			// Else remove the last character of the current word
-			m.currWord = removeLastChar(m.currWord)
 		default:
 			m.currWord += msg.String()
 		}
