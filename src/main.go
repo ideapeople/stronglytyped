@@ -6,20 +6,36 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/tjarratt/babble"
 	"github.com/urfave/cli/v2"
 )
 
-var (
-	targetWords = []string{"kartik", "aaron", "josh"}
-)
+const WORD_PAGE_LENGTH = 10
+const MAX_WORD_LENGTH = 8
 
 type model struct {
 	targetStringIndex int
 	currWord          string
 	prevWords         []string
 	targetWords       []string
+}
+
+func generateWords(numWords int, maxWordLength int) []string {
+	babbler := babble.NewBabbler()
+	babbler.Count = numWords
+	babbler.Separator = " "
+	babbler.Words = fold(babbler.Words, []string{}, func(word string, acc []string) []string {
+		if len(word) > MAX_WORD_LENGTH {
+			return acc
+		}
+
+		return append(acc, strings.ToLower(word))
+	})
+
+	return strings.Split(babbler.Babble(), babbler.Separator)
 }
 
 func (m model) getUserWordAtIndex(index int) string {
@@ -41,7 +57,7 @@ func initialModel() model {
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
-		targetWords:       targetWords,
+		targetWords:       generateWords(WORD_PAGE_LENGTH, MAX_WORD_LENGTH),
 	}
 }
 
@@ -94,8 +110,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() string {
-	var resp string
+func (m model) View() (resp string) {
 	for indx, word := range m.targetWords {
 		targetWord := []rune(word)
 		userWord := []rune(m.getUserWordAtIndex(indx))
@@ -124,7 +139,7 @@ func (m model) View() string {
 			resp += " "
 		}
 	}
-	return resp
+	return
 }
 
 func removeLastChar(s string) string {

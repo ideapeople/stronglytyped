@@ -6,3 +6,19 @@ func min(a, b int) int {
 	}
 	return a
 }
+
+func filter[T any](list []T, test func(T) bool) (ret []T) {
+	for _, el := range list {
+		if test(el) {
+			ret = append(ret, el)
+		}
+	}
+	return
+}
+
+func fold[T any, R any](list []T, base R, combine func(T, R) R) (ret R) {
+	for _, el := range list {
+		ret = combine(el, ret)
+	}
+	return
+}
