@@ -14,13 +14,15 @@ import (
 )
 
 const (
-	WORD_PAGE_LENGTH = 5
-	MAX_WORD_LENGTH  = 8
+	NUM_LINES       = 3
+	WORDS_PER_LINE  = 8
+	MAX_WORD_LENGTH = 8
 )
 
 type config struct {
-	wordPageLength int
-	maxWordLength  int
+	numLines      int
+	wordsPerLine  int
+	maxWordLength int
 }
 
 type model struct {
@@ -66,7 +68,7 @@ func initialModel(c config) model {
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
-		targetWords:       generateWords(c.wordPageLength, c.maxWordLength),
+		targetWords:       generateWords(c.wordsPerLine*c.numLines, c.maxWordLength),
 	}
 }
 
@@ -88,8 +90,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.prevWords = append(m.prevWords, m.currWord)
 			m.currWord = ""
 
-			if len(m.prevWords)-1 == len(m.targetWords)-1 {
-				m.targetWords = append(m.targetWords, generateWords(m.config.maxWordLength, m.config.wordPageLength)...)
+			if len(m.prevWords)-1 == len(m.targetWords)-1-m.config.wordsPerLine*(m.config.numLines/2) {
+				m.targetWords = append(m.targetWords, generateWords(m.config.wordsPerLine, m.config.maxWordLength)...)
 			}
 		case tea.KeyBackspace:
 			// If there is a single word which is empty, do nothing
@@ -102,8 +104,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// If current word is empty and the previous word is not correct, remove the current word
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != m.targetWords[len(m.prevWords)-1] {
+			// If current word is empty and the previous word is not correct and the previous word is within the last <numLines> lines, remove the current word
+			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != m.targetWords[len(m.prevWords)-1] && len(m.prevWords)-1 > len(m.targetWords)-1-m.config.wordsPerLine*m.config.numLines {
 				m.currWord = m.prevWord()
 				m.prevWords = m.prevWords[:len(m.prevWords)-1]
 				return m, nil
@@ -120,7 +122,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() (resp string) {
-	for indx, word := range m.targetWords {
+	for offset, word := range m.targetWords[len(m.targetWords)-m.config.wordsPerLine*m.config.numLines : len(m.targetWords)] {
+		indx := len(m.targetWords) - m.config.wordsPerLine*m.config.numLines + offset
 		targetWord := []rune(word)
 		userWord := []rune(m.getUserWordAtIndex(indx))
 
@@ -144,10 +147,13 @@ func (m model) View() (resp string) {
 			resp += cursor + UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
 		}
 
-		if indx < len(m.targetWords)-1 {
+		if offset > 0 && offset%m.config.wordsPerLine == m.config.wordsPerLine-1 {
+			resp += "\n"
+		} else if indx < len(m.targetWords)-1 {
 			resp += " "
 		}
 	}
+
 	return
 }
 
@@ -202,8 +208,9 @@ func startTest() *cli.Command {
 		Flags: []cli.Flag{lengthFlag},
 		Action: func(ctx *cli.Context) error {
 			config := config{
-				wordPageLength: WORD_PAGE_LENGTH,
-				maxWordLength:  MAX_WORD_LENGTH,
+				numLines:      NUM_LINES,
+				wordsPerLine:  WORDS_PER_LINE,
+				maxWordLength: MAX_WORD_LENGTH,
 			}
 
 			p := tea.NewProgram(initialModel(config))
