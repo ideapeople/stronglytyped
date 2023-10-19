@@ -16,9 +16,9 @@ func filter[T any](list []T, test func(T) bool) (ret []T) {
 	return
 }
 
-func fold[T any, R any](list []T, base R, combine func(T, R) R) (ret R) {
+func fold[T any, R any](list []T, base R, combine func(R, T) R) (ret R) {
 	for _, el := range list {
-		ret = combine(el, ret)
+		ret = combine(ret, el)
 	}
 	return
 }

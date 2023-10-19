@@ -6,18 +6,17 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/tjarratt/babble"
 	"github.com/urfave/cli/v2"
 )
 
 const (
 	LINES_PER_PAGE  = 3
 	WORDS_PER_LINE  = 8
+	MIN_WORD_LENGTH = 3
 	MAX_WORD_LENGTH = 8
 )
 
@@ -26,35 +25,19 @@ const (
 type config struct {
 	linesPerPage      int
 	wordsPerLine      int
+	minWordLength     int
 	maxWordLength     int
 	durationInSeconds int
 }
 
 type model struct {
-	config            config
-	targetStringIndex int
-	currWord          string
-	prevWords         []string
-	targetWords       []string
-	timer             timer.Model
-	isDone            bool
-}
-
-func generateWords(numWords int, maxWordLength int) []string {
-	babbler := babble.NewBabbler()
-	babbler.Count = numWords
-	babbler.Separator = " "
-	babbler.Words = fold(babbler.Words, []string{}, func(word string, acc []string) []string {
-		// Ignore words longer than the max word length.
-		if len(word) > maxWordLength {
-			return acc
-		}
-
-		// Lowercase added words.
-		return append(acc, strings.ToLower(word))
-	})
-
-	return strings.Split(babbler.Babble(), babbler.Separator)
+	config        config
+	wordGenerator wordGenerator
+	currWord      string
+	prevWords     []string
+	targetWords   []string
+	timer         timer.Model
+	isDone        bool
 }
 
 func (m model) getUserWordAtIndex(index int) string {
@@ -88,14 +71,16 @@ func (m model) firstIndexOfPage() int {
 }
 
 func initialModel(c config) model {
+	generator := newWordGenerator(commonWords, c.minWordLength, c.maxWordLength)
+
 	return model{
-		config:            c,
-		targetStringIndex: 0,
-		currWord:          "",
-		prevWords:         []string{},
-		targetWords:       generateWords(c.wordsPerLine*c.linesPerPage, c.maxWordLength),
-		timer:             timer.New(time.Duration(c.durationInSeconds) * time.Second),
-		isDone:            false,
+		config:        c,
+		wordGenerator: generator,
+		currWord:      "",
+		prevWords:     []string{},
+		targetWords:   generator.generate(c.wordsPerLine * c.linesPerPage),
+		timer:         timer.New(time.Duration(c.durationInSeconds) * time.Second),
+		isDone:        false,
 	}
 }
 
@@ -119,10 +104,6 @@ func (m model) lastWordOnCenterLineIndex() int {
 	lastTargetWordIndex := len(m.targetWords) - 1
 	wordsPerHalfPage := m.config.wordsPerLine * (m.config.linesPerPage / 2)
 	return lastTargetWordIndex - wordsPerHalfPage
-}
-
-func (m model) generateWords() []string {
-	return generateWords(m.config.wordsPerLine, m.config.maxWordLength)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -149,7 +130,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currWord = ""
 
 				if len(m.prevWords)-1 == m.lastWordOnCenterLineIndex() {
-					m.targetWords = append(m.targetWords, m.generateWords()...)
+					m.targetWords = append(m.targetWords, m.wordGenerator.generate(m.config.wordsPerLine)...)
 				}
 			}
 		case tea.KeyBackspace:
