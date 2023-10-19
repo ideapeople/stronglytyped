@@ -14,13 +14,15 @@ import (
 )
 
 const (
-	NUM_LINES       = 3
+	LINES_PER_PAGE  = 3
 	WORDS_PER_LINE  = 8
 	MAX_WORD_LENGTH = 8
 )
 
+// NOTE: It is an invariant that the word the user is on will always be within
+// the last page of the target words.
 type config struct {
-	numLines      int
+	linesPerPage  int
 	wordsPerLine  int
 	maxWordLength int
 }
@@ -64,18 +66,44 @@ func (m model) prevWord() string {
 	return m.prevWords[len(m.prevWords)-1]
 }
 
+func (m model) wordIsCorrect(i int) bool {
+	if i >= len(m.targetWords) {
+		return false
+	}
+
+	if i == len(m.targetWords)-1 {
+		return m.currWord == m.targetWords[i]
+	}
+
+	return m.prevWords[i] == m.targetWords[i]
+}
+
+func (m model) firstIndexOfPage() int {
+	return len(m.targetWords) - m.config.wordsPerLine*m.config.linesPerPage
+}
+
 func initialModel(c config) model {
 	return model{
 		config:            c,
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
-		targetWords:       generateWords(c.wordsPerLine*c.numLines, c.maxWordLength),
+		targetWords:       generateWords(c.wordsPerLine*c.linesPerPage, c.maxWordLength),
 	}
 }
 
 func (m model) Init() tea.Cmd {
 	return nil
+}
+
+func (m model) lastWordOnCenterLineIndex() int {
+	lastTargetWordIndex := len(m.targetWords) - 1
+	wordsPerHalfPage := m.config.wordsPerLine * (m.config.linesPerPage / 2)
+	return lastTargetWordIndex - wordsPerHalfPage
+}
+
+func (m model) generateWords() []string {
+	return generateWords(m.config.wordsPerLine, m.config.maxWordLength)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -92,11 +120,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.prevWords = append(m.prevWords, m.currWord)
 			m.currWord = ""
 
-			// If the user just finished typing the last word on the center line
-			// within the last <numLines> lines of target words, generate another
-			// line of target words.
-			if len(m.prevWords)-1 == len(m.targetWords)-1-m.config.wordsPerLine*(m.config.numLines/2) {
-				m.targetWords = append(m.targetWords, generateWords(m.config.wordsPerLine, m.config.maxWordLength)...)
+			if len(m.prevWords)-1 == m.lastWordOnCenterLineIndex() {
+				m.targetWords = append(m.targetWords, m.generateWords()...)
 			}
 		case tea.KeyBackspace:
 			// If there is a single word which is empty, do nothing
@@ -105,12 +130,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// If current word is empty and the previous word is correct, do nothing
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() == m.targetWords[len(m.prevWords)-1] {
+			if len(m.prevWords) > 0 && m.currWord == "" && m.wordIsCorrect(len(m.prevWords)-1) {
 				return m, nil
 			}
 
-			// If current word is empty and the previous word is not correct and the previous word is within the last <numLines> lines, remove the current word
-			if len(m.prevWords) > 0 && m.currWord == "" && m.prevWord() != m.targetWords[len(m.prevWords)-1] && len(m.prevWords)-1 > len(m.targetWords)-1-m.config.wordsPerLine*m.config.numLines {
+			// If current word is empty and the previous word is not correct and the
+			// previous word is on the current page, remove the current word
+			prevWordIsOnPage := len(m.prevWords)-1 >= m.firstIndexOfPage()
+			if len(m.prevWords) > 0 && m.currWord == "" && !m.wordIsCorrect(len(m.prevWords)-1) && prevWordIsOnPage {
 				m.currWord = m.prevWord()
 				m.prevWords = m.prevWords[:len(m.prevWords)-1]
 				return m, nil
@@ -127,15 +154,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() (resp string) {
-	// To achieve a scrolling effect where only <numLines> lines of words are
-	// shown, only render the last <numLines> lines of target words. For-looping
-	// through a ranged slice still starts the index at 0, meaning that here it
-	// is no longer the index, but an offset on the start of the range.
-	for offset, word := range m.targetWords[len(m.targetWords)-m.config.wordsPerLine*m.config.numLines : len(m.targetWords)] {
-		// Calculate the word index using the offset and the starting index.
-		indx := len(m.targetWords) - m.config.wordsPerLine*m.config.numLines + offset
-		targetWord := []rune(word)
-		userWord := []rune(m.getUserWordAtIndex(indx))
+	// To achieve a scrolling effect where only <linesPerPage> lines of words are
+	// shown, only render the last <linesPerPage> lines of target words.
+	// For-looping through a ranged slice still starts the index at 0, meaning
+	// that here it is no longer the index, but an offset on the range start.
+	for offset, word := range m.targetWords[m.firstIndexOfPage():len(m.targetWords)] {
+		var (
+			indx       = m.firstIndexOfPage() + offset
+			targetWord = []rune(word)
+			userWord   = []rune(m.getUserWordAtIndex(indx))
+		)
 
 		for i := 0; i < min(len(targetWord), len(userWord)); i++ {
 			textStyle := CorrectTextStyle
@@ -157,8 +185,8 @@ func (m model) View() (resp string) {
 			resp += cursor + UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
 		}
 
-		// Separate the lines based upon line length.
-		if offset > 0 && offset%m.config.wordsPerLine == m.config.wordsPerLine-1 {
+		indexAtEndOfLine := offset > 0 && offset%m.config.wordsPerLine == m.config.wordsPerLine-1
+		if indexAtEndOfLine {
 			resp += "\n"
 		} else if indx < len(m.targetWords)-1 {
 			resp += " "
@@ -219,7 +247,7 @@ func startTest() *cli.Command {
 		Flags: []cli.Flag{lengthFlag},
 		Action: func(ctx *cli.Context) error {
 			config := config{
-				numLines:      NUM_LINES,
+				linesPerPage:  LINES_PER_PAGE,
 				wordsPerLine:  WORDS_PER_LINE,
 				maxWordLength: MAX_WORD_LENGTH,
 			}
