@@ -38,10 +38,12 @@ func generateWords(numWords int, maxWordLength int) []string {
 	babbler.Count = numWords
 	babbler.Separator = " "
 	babbler.Words = fold(babbler.Words, []string{}, func(word string, acc []string) []string {
+		// Ignore words longer than the max word length.
 		if len(word) > maxWordLength {
 			return acc
 		}
 
+		// Lowercase added words.
 		return append(acc, strings.ToLower(word))
 	})
 
@@ -90,6 +92,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.prevWords = append(m.prevWords, m.currWord)
 			m.currWord = ""
 
+			// If the user just finished typing the last word on the center line
+			// within the last <numLines> lines of target words, generate another
+			// line of target words.
 			if len(m.prevWords)-1 == len(m.targetWords)-1-m.config.wordsPerLine*(m.config.numLines/2) {
 				m.targetWords = append(m.targetWords, generateWords(m.config.wordsPerLine, m.config.maxWordLength)...)
 			}
@@ -122,7 +127,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() (resp string) {
+	// To achieve a scrolling effect where only <numLines> lines of words are
+	// shown, only render the last <numLines> lines of target words. For-looping
+	// through a ranged slice still starts the index at 0, meaning that here it
+	// is no longer the index, but an offset on the start of the range.
 	for offset, word := range m.targetWords[len(m.targetWords)-m.config.wordsPerLine*m.config.numLines : len(m.targetWords)] {
+		// Calculate the word index using the offset and the starting index.
 		indx := len(m.targetWords) - m.config.wordsPerLine*m.config.numLines + offset
 		targetWord := []rune(word)
 		userWord := []rune(m.getUserWordAtIndex(indx))
@@ -147,6 +157,7 @@ func (m model) View() (resp string) {
 			resp += cursor + UnreachedTextStyle.Render(string(targetWord[len(userWord):]))
 		}
 
+		// Separate the lines based upon line length.
 		if offset > 0 && offset%m.config.wordsPerLine == m.config.wordsPerLine-1 {
 			resp += "\n"
 		} else if indx < len(m.targetWords)-1 {
