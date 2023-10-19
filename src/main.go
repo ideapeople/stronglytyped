@@ -13,10 +13,18 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-const WORD_PAGE_LENGTH = 10
-const MAX_WORD_LENGTH = 8
+const (
+	WORD_PAGE_LENGTH = 5
+	MAX_WORD_LENGTH  = 8
+)
+
+type config struct {
+	wordPageLength int
+	maxWordLength  int
+}
 
 type model struct {
+	config            config
 	targetStringIndex int
 	currWord          string
 	prevWords         []string
@@ -28,7 +36,7 @@ func generateWords(numWords int, maxWordLength int) []string {
 	babbler.Count = numWords
 	babbler.Separator = " "
 	babbler.Words = fold(babbler.Words, []string{}, func(word string, acc []string) []string {
-		if len(word) > MAX_WORD_LENGTH {
+		if len(word) > maxWordLength {
 			return acc
 		}
 
@@ -52,12 +60,13 @@ func (m model) prevWord() string {
 	return m.prevWords[len(m.prevWords)-1]
 }
 
-func initialModel() model {
+func initialModel(c config) model {
 	return model{
+		config:            c,
 		targetStringIndex: 0,
 		currWord:          "",
 		prevWords:         []string{},
-		targetWords:       generateWords(WORD_PAGE_LENGTH, MAX_WORD_LENGTH),
+		targetWords:       generateWords(c.wordPageLength, c.maxWordLength),
 	}
 }
 
@@ -76,12 +85,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			if len(m.prevWords) == len(m.targetWords)-1 {
-				return m, tea.Quit
-			}
-
 			m.prevWords = append(m.prevWords, m.currWord)
 			m.currWord = ""
+
+			if len(m.prevWords)-1 == len(m.targetWords)-1 {
+				m.targetWords = append(m.targetWords, generateWords(m.config.maxWordLength, m.config.wordPageLength)...)
+			}
 		case tea.KeyBackspace:
 			// If there is a single word which is empty, do nothing
 			if len(m.prevWords) == 0 && m.currWord == "" {
@@ -192,7 +201,12 @@ func startTest() *cli.Command {
 		Usage: "Start typing test",
 		Flags: []cli.Flag{lengthFlag},
 		Action: func(ctx *cli.Context) error {
-			p := tea.NewProgram(initialModel())
+			config := config{
+				wordPageLength: WORD_PAGE_LENGTH,
+				maxWordLength:  MAX_WORD_LENGTH,
+			}
+
+			p := tea.NewProgram(initialModel(config))
 			if _, err := p.Run(); err != nil {
 				fmt.Printf("Alas, there's been an error: %v", err)
 				os.Exit(1)
