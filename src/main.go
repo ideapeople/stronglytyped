@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
+	"github.com/charmbracelet/bubbles/timer"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tjarratt/babble"
 	"github.com/urfave/cli/v2"
@@ -22,9 +24,10 @@ const (
 // NOTE: It is an invariant that the word the user is on will always be within
 // the last page of the target words.
 type config struct {
-	linesPerPage  int
-	wordsPerLine  int
-	maxWordLength int
+	linesPerPage      int
+	wordsPerLine      int
+	maxWordLength     int
+	durationInSeconds int
 }
 
 type model struct {
@@ -33,6 +36,8 @@ type model struct {
 	currWord          string
 	prevWords         []string
 	targetWords       []string
+	timer             timer.Model
+	isDone            bool
 }
 
 func generateWords(numWords int, maxWordLength int) []string {
@@ -89,11 +94,25 @@ func initialModel(c config) model {
 		currWord:          "",
 		prevWords:         []string{},
 		targetWords:       generateWords(c.wordsPerLine*c.linesPerPage, c.maxWordLength),
+		timer:             timer.New(time.Duration(c.durationInSeconds) * time.Second),
+		isDone:            false,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return m.timer.Init()
+}
+
+func (m model) DoneUpdate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		}
+	}
+
+	return m, nil
 }
 
 func (m model) lastWordOnCenterLineIndex() int {
@@ -107,7 +126,19 @@ func (m model) generateWords() []string {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.isDone {
+		return m.DoneUpdate(msg)
+	}
+
 	switch msg := msg.(type) {
+	case timer.TickMsg:
+		var cmd tea.Cmd
+		m.timer, cmd = m.timer.Update(msg)
+		return m, cmd
+
+	case timer.TimeoutMsg:
+		m.isDone = true
+
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
@@ -138,7 +169,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) DoneView() string {
+	// TODO: print test statistics
+	return "typing test completed, statistics go here\npress ctrl+c to quit\n"
+}
+
 func (m model) View() (resp string) {
+	if m.isDone {
+		return m.DoneView()
+	}
+
+	resp += TimeRemainingStyle.Render(m.timer.View())
+	resp += "\n"
+
 	// To achieve a scrolling effect where only <linesPerPage> lines of words are
 	// shown, only render the last <linesPerPage> lines of target words.
 	// For-looping through a ranged slice still starts the index at 0, meaning
@@ -216,12 +259,12 @@ func main() {
 }
 
 func startTest() *cli.Command {
-	var length int
+	var duration int
 
-	lengthFlag := &cli.IntFlag{
-		Name:        "length",
-		Usage:       "Specify the length of the test in seconds",
-		Destination: &length,
+	durationFlag := &cli.IntFlag{
+		Name:        "duration",
+		Usage:       "Specify the duration of the test in seconds",
+		Destination: &duration,
 		Required:    false,
 		Value:       30,
 	}
@@ -229,12 +272,13 @@ func startTest() *cli.Command {
 	return &cli.Command{
 		Name:  "tt",
 		Usage: "Start typing test",
-		Flags: []cli.Flag{lengthFlag},
+		Flags: []cli.Flag{durationFlag},
 		Action: func(ctx *cli.Context) error {
 			config := config{
-				linesPerPage:  LINES_PER_PAGE,
-				wordsPerLine:  WORDS_PER_LINE,
-				maxWordLength: MAX_WORD_LENGTH,
+				linesPerPage:      LINES_PER_PAGE,
+				wordsPerLine:      WORDS_PER_LINE,
+				maxWordLength:     MAX_WORD_LENGTH,
+				durationInSeconds: duration,
 			}
 
 			p := tea.NewProgram(initialModel(config))

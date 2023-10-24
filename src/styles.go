@@ -8,4 +8,5 @@ var (
 	OvertypedTextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ba2222"))
 	UnreachedTextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	CursorTextStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#f5e614"))
+	TimeRemainingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#e2b714"))
 )
