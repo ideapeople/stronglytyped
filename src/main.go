@@ -258,6 +258,7 @@ func startTest() *cli.Command {
 			config := config{
 				linesPerPage:      LINES_PER_PAGE,
 				wordsPerLine:      WORDS_PER_LINE,
+				minWordLength:     MIN_WORD_LENGTH,
 				maxWordLength:     MAX_WORD_LENGTH,
 				durationInSeconds: duration,
 			}

@@ -26,8 +26,12 @@ func newWordGenerator(words []string, minWordLength int, maxWordLength int) word
 }
 
 func filterAndLowercaseWords(words []string, minWordLength int, maxWordLength int) []string {
-	return filter(words, func(word string) bool {
-		return minWordLength <= len(word) && len(word) <= maxWordLength
+	return fold(words, []string{}, func(acc []string, word string) []string {
+		if len(word) < minWordLength && maxWordLength < len(word) {
+			return acc
+		}
+
+		return append(acc, strings.ToLower(word))
 	})
 }
 
