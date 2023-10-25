@@ -30,6 +30,16 @@ type config struct {
 	durationInSeconds int
 }
 
+type stats struct {
+	wpm        int
+	accPercent int
+}
+
+type metrics struct {
+	numCorrectChars   int
+	numIncorrectChars int
+}
+
 type model struct {
 	config        config
 	wordGenerator wordGenerator
@@ -38,6 +48,8 @@ type model struct {
 	targetWords   []string
 	timer         timer.Model
 	isDone        bool
+	stats         stats
+	metrics       metrics
 }
 
 func (m model) getUserWordAtIndex(index int) string {
@@ -54,12 +66,16 @@ func (m model) prevWord() string {
 	return m.prevWords[len(m.prevWords)-1]
 }
 
+func (m model) currWordIndex() int {
+	return len(m.prevWords)
+}
+
 func (m model) wordIsCorrect(i int) bool {
-	if i >= len(m.targetWords) {
+	if i >= (len(m.prevWords) + 1) {
 		return false
 	}
 
-	if i == len(m.targetWords)-1 {
+	if i == len(m.prevWords) {
 		return m.currWord == m.targetWords[i]
 	}
 
@@ -68,6 +84,19 @@ func (m model) wordIsCorrect(i int) bool {
 
 func (m model) firstIndexOfPage() int {
 	return len(m.targetWords) - m.config.wordsPerLine*m.config.linesPerPage
+}
+
+func (m *model) computeStats() {
+	var numCharsInCorrectWords = 0
+
+	for i, word := range m.prevWords {
+		if m.wordIsCorrect(i) {
+			numCharsInCorrectWords += len(word)
+		}
+	}
+
+	m.stats.wpm = (numCharsInCorrectWords / 5.0) * (60.0 / m.config.durationInSeconds)
+	m.stats.accPercent = 100 * m.metrics.numCorrectChars / (m.metrics.numCorrectChars + m.metrics.numIncorrectChars)
 }
 
 func initialModel(c config) model {
@@ -119,6 +148,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case timer.TimeoutMsg:
 		m.isDone = true
+		m.computeStats()
 
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -126,6 +156,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case tea.KeySpace:
 			if m.currWord != "" {
+				if m.wordIsCorrect(m.currWordIndex()) {
+					m.metrics.numCorrectChars += 1
+				} else {
+					m.metrics.numIncorrectChars += 1
+				}
+
 				m.prevWords = append(m.prevWords, m.currWord)
 				m.currWord = ""
 
@@ -143,7 +179,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.prevWords = m.prevWords[:len(m.prevWords)-1]
 			}
 		default:
+			var currTargetWord = m.targetWords[m.currWordIndex()]
+
 			m.currWord += msg.String()
+
+			// If we are still in the word
+			if len(m.currWord) <= len(currTargetWord) {
+				if m.currWord[len(m.currWord)-1] == currTargetWord[len(m.currWord)-1] {
+					m.metrics.numCorrectChars += 1
+				} else {
+					m.metrics.numIncorrectChars += 1
+				}
+			} else {
+				m.metrics.numIncorrectChars += 1
+			}
 		}
 	}
 
@@ -151,8 +200,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) DoneView() string {
-	// TODO: print test statistics
-	return "typing test completed, statistics go here\npress ctrl+c to quit\n"
+	return fmt.Sprintf(
+		`typing test completed
+wpm: %d
+acc: %d/%d = %d%%
+press ctrl+c to exit
+`,
+		m.stats.wpm,
+		m.metrics.numCorrectChars,
+		m.metrics.numCorrectChars+m.metrics.numIncorrectChars,
+		m.stats.accPercent)
 }
 
 func (m model) View() (resp string) {
