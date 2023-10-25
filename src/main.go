@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	LINES_PER_PAGE  = 3
-	WORDS_PER_LINE  = 8
-	MIN_WORD_LENGTH = 3
-	MAX_WORD_LENGTH = 8
+	LINES_PER_PAGE            = 3
+	WORDS_PER_LINE            = 8
+	MIN_WORD_LENGTH           = 3
+	MAX_WORD_LENGTH           = 8
+	MIN_TEST_DURATION_SECONDS = 5
 )
 
 // NOTE: It is an invariant that the word the user is on will always be within
@@ -87,7 +88,7 @@ func (m model) firstIndexOfPage() int {
 }
 
 func (m *model) computeStats() {
-	var numCharsInCorrectWords = 0
+	numCharsInCorrectWords := 0
 
 	for i, word := range m.prevWords {
 		if m.wordIsCorrect(i) {
@@ -96,7 +97,11 @@ func (m *model) computeStats() {
 	}
 
 	m.stats.wpm = (numCharsInCorrectWords / 5.0) * (60.0 / m.config.durationInSeconds)
-	m.stats.accPercent = 100 * m.metrics.numCorrectChars / (m.metrics.numCorrectChars + m.metrics.numIncorrectChars)
+
+	totalChars := m.metrics.numCorrectChars + m.metrics.numIncorrectChars
+	if totalChars > 0 {
+		m.stats.accPercent = 100 * m.metrics.numCorrectChars / (totalChars)
+	}
 }
 
 func initialModel(c config) model {
@@ -312,6 +317,11 @@ func startTest() *cli.Command {
 		Usage: "Start typing test",
 		Flags: []cli.Flag{durationFlag},
 		Action: func(ctx *cli.Context) error {
+			if duration < MIN_TEST_DURATION_SECONDS {
+				fmt.Printf("Duration must be greater than %d seconds, given %d", MIN_TEST_DURATION_SECONDS, duration)
+				os.Exit(1)
+			}
+
 			config := config{
 				linesPerPage:      LINES_PER_PAGE,
 				wordsPerLine:      WORDS_PER_LINE,
